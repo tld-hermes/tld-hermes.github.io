@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>2048 Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>2048</h1>
+      <div class="score-box">
+        <div class="info-box">
+          <span class="label">Score</span>
+          <span class="value" id="score">0</span>
+        </div>
+        <div class="info-box">
+          <span class="label">Best</span>
+          <span class="value" id="best-score">0</span>
+        </div>
+      </div>
+    </header>
+
+    <button id="new-game" class="btn">New Game</button>
+
+    <div id="game-board"></div>
+    <p class="controls">Arrow keys or swipe to move</p>
+    <footer>Version: <span id="git-hash">07acc452</span></footer>
+  </div>
+
+  <div id="game-over-overlay" class="overlay hidden">
+    <div class="overlay-content">
+      <h2>Game Over!</h2>
+      <p>Score: <span id="final-score">0</span></p>
+      <button id="try-again" class="btn">Try Again</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "projects": [
+    {
+      "id": "2048",
+      "name": "2048 Game",
+      "description": "Classic tile-matching puzzle game with smooth animations and local storage for high scores.",
+      "url": "/2048",
+      "status": "live",
+      "tags": ["puzzle", "javascript", "vanilla-js"]
+    },
+    {
+      "id": "sudoku",
+      "name": "Sudoku",
+      "description": "Classic Sudoku with 5 difficulty levels, pencil marks, hints, undo, and timer.",
+      "url": "/sudoku",
+      "status": "live",
+      "tags": ["puzzle", "sudoku", "javascript"]
+    },
+    {
+      "id": "lianliankan",
+      "name": "Pokemon Memory Match",
+      "description": "Flip cards and match Pokemon pairs. Easy (12), Medium (24), Hard (48) cards.",
+      "url": "/lianliankan",
+      "status": "live",
+      "tags": ["puzzle", "memory", "pokemon", "javascript"]
+    }
+  ],
+  "version": "1.1.0"
+}

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pokemon Memory Match</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #eee;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    position: relative;
+  }
+
+  h1 {
+    font-size: clamp(0.9rem, 3vmin, 1.3rem);
+    margin: 2px 0;
+    background: linear-gradient(135deg, #f5c518, #e94560);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    flex-shrink: 0;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 4px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .top-bar button, .top-bar select {
+    background: linear-gradient(135deg, #e94560, #c23152);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: clamp(0.7rem, 2.5vmin, 0.85rem);
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    flex-shrink: 0;
+  }
+  .top-bar select {
+    background: linear-gradient(135deg, #4a4a8a, #3a3a6a);
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .stats {
+    display: flex;
+    gap: 6px;
+    font-size: clamp(0.7rem, 2.5vmin, 0.85rem);
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .stats span {
+    background: rgba(255,255,255,0.08);
+    padding: 3px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+  .stats .num { color: #f5c518; font-weight: 700; }
+
+  #board {
+    display: grid;
+    gap: 3px;
+    perspective: 1200px;
+    padding: 4px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .cell {
+    border-radius: 6px;
+    cursor: pointer;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.35s ease;
+    touch-action: manipulation;
+    aspect-ratio: 1;
+  }
+  .cell.flipped { transform: rotateY(180deg); }
+  .cell.matched {
+    transform: rotateY(180deg);
+    pointer-events: none;
+  }
+  .cell.matched .cell-front {
+    border-color: #4caf50;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+  }
+  .cell.matched .cell-front::after {
+    content: '\2713';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    background: #4caf50;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    line-height: 1;
+  }
+
+  .cell-inner {
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .cell-front {
+    background: #fff;
+    transform: rotateY(180deg);
+    border: 2px solid #ddd;
+  }
+  .cell-front img {
+    width: 92%;
+    height: 92%;
+    object-fit: contain;
+    image-rendering: auto;
+    pointer-events: none;
+  }
+
+  .cell-back {
+    background: linear-gradient(145deg, #2c2c54, #1a1a3e);
+    transform: rotateY(0deg);
+    border: 2px solid #444;
+  }
+  .cell-back::before {
+    content: '';
+    position: absolute;
+    width: 50%; height: 50%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #e94560, #a02030);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border: 3px solid #ddd;
+  }
+  .cell-back::after {
+    content: '';
+    position: absolute;
+    width: 18%; height: 18%;
+    border-radius: 50%;
+    background: #fff;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid #bbb;
+  }
+
+  #victory-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  #victory-overlay.show { display: flex; }
+
+  .victory-box {
+    background: linear-gradient(135deg, #1a1a3e, #2c2c54);
+    border: 2px solid #f5c518;
+    border-radius: 20px;
+    padding: 24px 32px;
+    text-align: center;
+    box-shadow: 0 0 60px rgba(245,197,24,0.2);
+    max-width: 90vw;
+  }
+  .victory-box h2 { font-size: clamp(1.2rem, 4vmin, 1.6rem); color: #f5c518; margin-bottom: 6px; }
+  .victory-box p { font-size: clamp(0.8rem, 3vmin, 0.95rem); opacity: 0.8; margin: 3px 0; }
+  .victory-box button {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #f5c518, #d4a800);
+    color: #1a1a2e;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  footer {
+    padding-top: 4px;
+    font-size: 0.55rem;
+    opacity: 0.25;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  footer span { font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h1>Pokémon Memory Match</h1>
+
+<div class="top-bar">
+  <button id="newGameBtn">🔄 New</button>
+  <select id="levelSelect">
+    <option value="easy">Easy (12 cards)</option>
+    <option value="medium">Medium (24 cards)</option>
+    <option value="hard">Hard (48 cards)</option>
+  </select>
+  <div class="stats">
+    <span>⏱ <span id="timer">0:00</span></span>
+    <span>👆 <span id="moves" class="num">0</span></span>
+    <span>✓ <span id="matchCount" class="num">0</span>/<span id="totalPairs">6</span></span>
+  </div>
+</div>
+
+<div id="board"></div>
+
+<div id="victory-overlay">
+  <div class="victory-box">
+    <h2>🎉 You Win!</h2>
+    <p>All pairs matched!</p>
+    <p>Time: <span id="finalTime">0:00</span> | Moves: <span id="finalMoves">0</span></p>
+    <button id="playAgainBtn">Play Again</button>
+  </div>
+</div>
+
+<footer>git: <span id="gitHash">19724984</span></footer>
+
+<script>
+(function() {
+  'use strict';
+
+  // Base grid definitions: { wider, taller }
+  // On portrait (phone): cols < rows → use (taller, wider) swapped so it's narrow & tall
+  // On landscape (PC):   cols > rows → use as-is (wide & short)
+  const LEVELS = {
+    easy:   { short: 3, long: 4 },   // 12 cards, 6 pairs
+    medium: { short: 4, long: 6 },   // 24 cards, 12 pairs
+    hard:   { short: 6, long: 8 },   // 48 cards, 24 pairs
+  };
+
+  let rows, cols, numPairs;
+  let cards = [];
+  let pokemonIds = [];
+  let preloadedSrc = {};
+  let flipped = [];
+  let matchedCount = 0;
+  let moves = 0;
+  let isProcessing = false;
+  let timerInterval = null;
+  let startTime = null;
+  let gameActive = false;
+
+  const boardEl = document.getElementById('board');
+  const timerEl = document.getElementById('timer');
+  const movesEl = document.getElementById('moves');
+  const matchCountEl = document.getElementById('matchCount');
+  const totalPairsEl = document.getElementById('totalPairs');
+  const levelSelect = document.getElementById('levelSelect');
+  const victoryOverlay = document.getElementById('victory-overlay');
+  const finalTimeEl = document.getElementById('finalTime');
+  const finalMovesEl = document.getElementById('finalMoves');
+
+  // Detect portrait vs landscape and set rows/cols
+  function applyOrientation() {
+    const level = LEVELS[levelSelect.value] || LEVELS.easy;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    if (isPortrait) {
+      // Phone portrait: narrow width, more rows → cols=short, rows=long
+      cols = level.short;
+      rows = level.long;
+    } else {
+      // PC landscape: wide, fewer rows → cols=long, rows=short
+      cols = level.long;
+      rows = level.short;
+    }
+    numPairs = (rows * cols) / 2;
+  }
+
+  function pickPokemonIds(count) {
+    const pool = [];
+    for (let i = 1; i <= 151; i++) pool.push(i);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, count);
+  }
+
+  function preloadAllImages(ids) {
+    return new Promise((resolve) => {
+      let loaded = 0;
+      const total = ids.length;
+      if (total === 0) { resolve(); return; }
+      ids.forEach(id => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = img.onerror = () => { loaded++; if (loaded >= total) resolve(); };
+        const src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+        img.src = src;
+        preloadedSrc[id] = src;
+      });
+    });
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function initGame() {
+    applyOrientation();
+
+    pokemonIds = pickPokemonIds(numPairs);
+    cards = [];
+    for (let i = 0; i < numPairs; i++) {
+      cards.push({ pid: pokemonIds[i], matched: false });
+      cards.push({ pid: pokemonIds[i], matched: false });
+    }
+    shuffle(cards);
+
+    matchedCount = 0;
+    moves = 0;
+    flipped = [];
+    isProcessing = false;
+
+    totalPairsEl.textContent = numPairs;
+    matchCountEl.textContent = '0';
+    movesEl.textContent = '0';
+  }
+
+  // Calculate board size to fit screen
+  function sizeBoard() {
+    applyOrientation(); // Recalculate rows/cols for current orientation
+    const isPortrait = window.innerHeight > window.innerWidth;
+
+    // Dynamically measure header height instead of guessing
+    const headerEl = document.querySelector('h1');
+    const topBarEl = document.querySelector('.top-bar');
+    const headerH = (headerEl ? headerEl.offsetHeight : 0) + (topBarEl ? topBarEl.offsetHeight : 0) + 8;
+    const footerH = 18;
+    const padding = 12;
+
+    boardEl.style.position = '';
+    boardEl.style.left = '';
+    boardEl.style.top = '';
+    boardEl.style.marginTop = '';
+
+    if (isPortrait) {
+      // Phone: board takes 95% width, positioned near bottom
+      const availW = window.innerWidth * 0.95 - padding;
+      const availH = window.innerHeight - headerH - footerH - padding;
+      const cellFromW = Math.floor((availW - (cols - 1) * 3) / cols);
+      const cellFromH = Math.floor((availH - (rows - 1) * 3) / rows);
+      const cellSize = Math.min(cellFromW, cellFromH);
+      boardEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+      boardEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+      // Position board near bottom for one-hand play
+      requestAnimationFrame(() => {
+        boardEl.style.marginTop = '0px';
+        const boardRect = boardEl.getBoundingClientRect();
+        const targetBottom = window.innerHeight - 20;
+        const diff = targetBottom - boardRect.bottom;
+        if (diff > 0) {
+          boardEl.style.marginTop = diff + 'px';
+        }
+      });
+    } else {
+      // PC: board centered, capped at reasonable size, no scroll
+      const availW = window.innerWidth * 0.95 - padding;
+      const availH = window.innerHeight - headerH - footerH - padding;
+      const maxCell = rows <= 4 ? 100 : 80;
+      const cellFromW = Math.floor((availW - (cols - 1) * 3) / cols);
+      const cellFromH = Math.floor((availH - (rows - 1) * 3) / rows);
+      let cellSize = Math.min(cellFromW, cellFromH, maxCell);
+      cellSize = Math.max(cellSize, 50);
+      boardEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+      boardEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+      // Center on PC using absolute positioning
+      requestAnimationFrame(() => {
+        const boardW = boardEl.offsetWidth;
+        const boardH = boardEl.offsetHeight;
+        const left = (window.innerWidth - boardW) / 2;
+        const top = headerH + (window.innerHeight - headerH - footerH - boardH) / 2;
+        boardEl.style.position = 'absolute';
+        boardEl.style.left = left + 'px';
+        boardEl.style.top = Math.max(headerH + 10, top) + 'px';
+      });
+    }
+  }
+
+  function render() {
+    boardEl.style.position = '';
+    boardEl.style.left = '';
+    boardEl.style.top = '';
+    boardEl.style.marginTop = '';
+    boardEl.innerHTML = '';
+    sizeBoard();
+
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.idx = i;
+
+      if (card.matched) {
+        cell.classList.add('matched');
+        const front = document.createElement('div');
+        front.className = 'cell-inner cell-front';
+        const img = document.createElement('img');
+        img.src = preloadedSrc[card.pid] || '';
+        img.alt = '';
+        img.draggable = false;
+        front.appendChild(img);
+        cell.appendChild(front);
+      } else {
+        const back = document.createElement('div');
+        back.className = 'cell-inner cell-back';
+        cell.appendChild(back);
+
+        const front = document.createElement('div');
+        front.className = 'cell-inner cell-front';
+        const img = document.createElement('img');
+        img.src = preloadedSrc[card.pid] || '';
+        img.alt = '';
+        img.draggable = false;
+        front.appendChild(img);
+        cell.appendChild(front);
+
+        cell.addEventListener('click', () => onCardClick(i), { passive: true });
+        cell.addEventListener('touchend', (e) => { e.preventDefault(); onCardClick(i); }, { passive: false });
+      }
+
+      boardEl.appendChild(cell);
+    }
+  }
+
+  function getCell(idx) {
+    return boardEl.querySelector(`.cell[data-idx="${idx}"]`);
+  }
+
+  function onCardClick(idx) {
+    if (isProcessing || !gameActive) return;
+    if (cards[idx].matched) return;
+
+    const cell = getCell(idx);
+    if (!cell || cell.classList.contains('flipped')) return;
+    if (flipped.length >= 2) return;
+
+    if (startTime === null) {
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 100);
+    }
+
+    cell.classList.add('flipped');
+    flipped.push(idx);
+
+    if (flipped.length === 2) {
+      moves++;
+      movesEl.textContent = moves;
+      isProcessing = true;
+
+      const [i1, i2] = flipped;
+      if (cards[i1].pid === cards[i2].pid) {
+        cards[i1].matched = true;
+        cards[i2].matched = true;
+        matchedCount++;
+        matchCountEl.textContent = matchedCount;
+
+        const c1 = getCell(i1);
+        const c2 = getCell(i2);
+        setTimeout(() => {
+          if (c1) { c1.classList.remove('flipped'); c1.classList.add('matched'); }
+          if (c2) { c2.classList.remove('flipped'); c2.classList.add('matched'); }
+        }, 300);
+
+        flipped = [];
+        isProcessing = false;
+
+        if (matchedCount >= numPairs) setTimeout(victory, 400);
+      } else {
+        setTimeout(() => {
+          const c1 = getCell(i1);
+          const c2 = getCell(i2);
+          if (c1) c1.classList.remove('flipped');
+          if (c2) c2.classList.remove('flipped');
+          flipped = [];
+          isProcessing = false;
+        }, 700);
+      }
+    }
+  }
+
+  function updateTimer() {
+    if (startTime === null) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    timerEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function victory() {
+    stopTimer();
+    gameActive = false;
+    finalTimeEl.textContent = timerEl.textContent;
+    finalMovesEl.textContent = moves;
+    victoryOverlay.classList.add('show');
+  }
+
+  async function newGame() {
+    stopTimer();
+    victoryOverlay.classList.remove('show');
+    flipped = [];
+    isProcessing = false;
+    matchedCount = 0;
+    moves = 0;
+    startTime = null;
+    gameActive = false;
+
+    timerEl.textContent = '0:00';
+    matchCountEl.textContent = '0';
+
+    initGame();
+    await preloadAllImages(pokemonIds);
+    render();
+    gameActive = true;
+  }
+
+  document.getElementById('newGameBtn').addEventListener('click', newGame, { passive: true });
+  document.getElementById('playAgainBtn').addEventListener('click', newGame, { passive: true });
+  levelSelect.addEventListener('change', newGame);
+  window.addEventListener('resize', () => { if (!isProcessing && gameActive) { sizeBoard(); } });
+
+  document.getElementById('gitHash').textContent = '19724984';
+  newGame();
+})();
+</script>
+</body>
+</html>

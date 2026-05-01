@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Sudoku - Project Showcase</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
+  background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+  min-height:100vh;color:#fff;display:flex;flex-direction:column;align-items:center;padding:1rem
+}
+h1{font-size:2rem;margin:1rem 0;background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.controls{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-bottom:1rem;width:100%;max-width:500px}
+.btn{
+  padding:.5rem 1rem;border:none;border-radius:8px;font-size:.85rem;font-weight:600;
+  cursor:pointer;transition:opacity .3s;color:#fff
+}
+.btn:hover{opacity:.8}
+.btn.active{outline:2px solid #fff;outline-offset:2px}
+.diff-easy{background:#10b981}
+.diff-mid{background:#f59e0b}
+.diff-hard{background:#f97316}
+.diff-expert{background:#ef4444}
+.diff-impossible{background:#dc2626}
+.action-btn{background:linear-gradient(90deg,#00d4ff,#7c3aed)}
+.secondary{background:rgba(255,255,255,.15)}
+.game-area{display:flex;flex-direction:column;align-items:center;gap:1rem}
+.board-container{position:relative}
+#board{
+  display:grid;grid-template-columns:repeat(9,1fr);gap:1px;
+  background:#334;border:2px solid #556;border-radius:4px;overflow:hidden;
+  width:min(90vw,450px);height:min(90vw,450px)
+}
+.cell{
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(1rem,4vw,1.4rem);font-weight:600;
+  cursor:pointer;transition:background .15s;aspect-ratio:1;
+  background:#1e293b;color:#e2e8f0;user-select:none
+}
+.cell.given{color:#94a3b8;font-weight:700}
+.cell.selected{background:#334155!important}
+.cell.highlight{background:#1e3a5f!important}
+.cell.same-num{background:#1a2d47!important}
+.cell.error{color:#ef4444!important;animation:shake .3s}
+.cell.hint{color:#22d3ee!important;animation:pulse .5s}
+.cell.note{font-size:clamp(.5rem,2vw,.7rem);color:#64748b;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;justify-items:center;padding:1px}
+.cell.note span{width:100%;text-align:center;line-height:1}
+.cell:not(.given):hover{background:#2a3a5c}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@keyframes win{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+#board.won{animation:win .5s ease 3}
+.num-pad{
+  display:grid;grid-template-columns:repeat(9,1fr);gap:4px;
+  width:min(90vw,450px)
+}
+.num-btn{
+  padding:.5rem;border:none;border-radius:6px;font-size:clamp(.9rem,3.5vw,1.2rem);
+  font-weight:700;cursor:pointer;background:rgba(255,255,255,.1);color:#e2e8f0;
+  transition:all .15s;position:relative
+}
+.num-btn:hover{background:rgba(255,255,255,.2)}
+.num-btn.completed{opacity:.4}
+.num-btn .count{
+  position:absolute;top:1px;right:3px;font-size:.55rem;color:#64748b;font-weight:400
+}
+.mode-toggle{display:flex;gap:.5rem;margin-bottom:.5rem}
+.mode-btn{padding:.3rem .8rem;border-radius:6px;font-size:.75rem;border:none;cursor:pointer;font-weight:600;transition:all .15s}
+.mode-btn.active{background:linear-gradient(90deg,#00d4ff,#7c3aed);color:#fff}
+.mode-btn:not(.active){background:rgba(255,255,255,.1);color:#94a3b8}
+.info-bar{
+  display:flex;gap:1rem;justify-content:center;align-items:center;
+  color:#94a3b8;font-size:.85rem;width:100%;max-width:500px;padding:.5rem
+}
+.overlay{
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:100
+}
+.overlay.show{display:flex}
+.overlay-content{
+  background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:16px;
+  padding:2rem;text-align:center;border:1px solid rgba(255,255,255,.1);
+  max-width:90vw
+}
+.overlay-content h2{font-size:2rem;margin-bottom:.5rem;background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.overlay-content p{margin:.5rem 0;color:#94a3b8}
+.overlay-content .btn{margin-top:1rem}
+</style>
+</head>
+<body>
+<h1>🧩 Sudoku</h1>
+<div class="info-bar">
+  <span id="timer">⏱ 00:00</span>
+  <span id="level-display">Easy</span>
+  <span id="mistakes">❌ 0</span>
+</div>
+<div class="controls">
+  <button class="btn diff-easy active" data-diff="0">Easy</button>
+  <button class="btn diff-mid" data-diff="1">Mid</button>
+  <button class="btn diff-hard" data-diff="2">Hard</button>
+  <button class="btn diff-expert" data-diff="3">Expert</button>
+  <button class="btn diff-impossible" data-diff="4">Impossible</button>
+</div>
+<div class="game-area">
+  <div class="board-container">
+    <div id="board"></div>
+  </div>
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="value">Value</button>
+    <button class="mode-btn" data-mode="note">Notes</button>
+    <button class="mode-btn" data-mode="erase">Erase</button>
+  </div>
+  <div class="num-pad" id="num-pad"></div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+    <button class="btn action-btn" id="new-game">New Game</button>
+    <button class="btn secondary" id="hint-btn">💡 Hint</button>
+    <button class="btn secondary" id="check-btn">✓ Check</button>
+    <button class="btn secondary" id="undo-btn">↩ Undo</button>
+  </div>
+</div>
+<div class="overlay" id="win-overlay">
+  <div class="overlay-content">
+    <h2>🎉 Congratulations!</h2>
+    <p id="win-time">Time: 00:00</p>
+    <p id="win-level">Level: Easy</p>
+    <button class="btn action-btn" id="play-again">Play Again</button>
+  </div>
+</div>
+<script>
+// ─── Sudoku Engine ──────────────────────────────────────────
+const DIFFICULTY = {EASY:0,MID:1,HARD:2,EXPERT:3,IMPOSSIBLE:4};
+const DIFF_NAMES = ['Easy','Mid','Hard','Expert','Impossible'];
+const CLUES = [38,30,24,20,17];
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+function deepClone(b){return b.map(r=>[...r])}
+
+class SudokuEngine{
+  constructor(){this.board=Array(9).fill(null).map(()=>Array(9).fill(0))}
+  isValid(board,r,c,num){
+    for(let i=0;i<9;i++){if(board[r][i]===num)return false;if(board[i][c]===num)return false}
+    let br=(r/3|0)*3,bc=(c/3|0)*3;
+    for(let i=br;i<br+3;i++)for(let j=bc;j<bc+3;j++){if(board[i][j]===num)return false}
+    return true
+  }
+  solve(board){
+    for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+      if(board[r][c]===0){
+        let nums=shuffle([1,2,3,4,5,6,7,8,9]);
+        for(let n of nums){if(this.isValid(board,r,c,n)){board[r][c]=n;if(this.solve(board))return true;board[r][c]=0}}
+        return false
+      }
+    }
+    return true
+  }
+  generateFull(){
+    let b=Array(9).fill(null).map(()=>Array(9).fill(0));
+    this.solve(b);return b
+  }
+  createPuzzle(diff){
+    let sol=this.generateFull(),puz=deepClone(sol);
+    let cells=[];for(let i=0;i<9;i++)for(let j=0;j<9;j++)cells.push([i,j]);
+    shuffle(cells);
+    let toRemove=81-CLUES[diff],removed=0;
+    for(let [r,c] of cells){
+      if(removed>=toRemove)break;
+      let backup=puz[r][c];puz[r][c]=0;
+      // Check unique solution
+      let copy=deepClone(puz),solutions=0;
+      let count=()=>{solutions++;if(solutions>1)return true;return false};
+      if(this._countSolutions(copy,count)){puz[r][c]=backup;continue}
+      removed++
+    }
+    return {puzzle:puz,solution:sol}
+  }
+  _countSolutions(board,stopFn){
+    for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+      if(board[r][c]===0){
+        for(let n=1;n<=9;n++){
+          if(this.isValid(board,r,c,n)){board[r][c]=n;if(this._countSolutions(board,stopFn)){board[r][c]=0;return true}board[r][c]=0}
+        }
+        return false
+      }
+    }
+    if(stopFn())return true;return false
+  }
+}
+
+// ─── Game State ──────────────────────────────────────────────
+let game=new SudokuEngine();
+let puzzle,solution,board,notes,history;
+let selectedR=-1,selectedC=-1,difficulty=0;
+let mode='value',timer=0,timerInterval,gameOver=false,mistakes=0;
+
+function init(){
+  puzzle=null;solution=null;board=null;notes=null;history=[];
+  selectedR=-1;selectedC=-1;gameOver=false;mistakes=0;
+  clearInterval(timerInterval);timer=0;
+  document.getElementById('timer').textContent='⏱ 00:00';
+  document.getElementById('mistakes').textContent='❌ 0';
+  document.getElementById('level-display').textContent=DIFF_NAMES[difficulty];
+  document.getElementById('win-overlay').classList.remove('show');
+  document.getElementById('board').classList.remove('won')
+}
+function generate(){
+  init();let data=game.createPuzzle(difficulty);
+  puzzle=data.puzzle;solution=data.solution;
+  board=deepClone(puzzle);notes=Array(9).fill(null).map(()=>Array(9).fill(null).map(()=>new Set()));
+  render();updateCounts();timerInterval=setInterval(()=>{
+    timer++;let m=Math.floor(timer/60),s=timer%60;
+    document.getElementById('timer').textContent='⏱ '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')
+  },1000)
+}
+
+function render(){
+  let b=document.getElementById('board');b.innerHTML='';
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    let cell=document.createElement('div');cell.className='cell';
+    if(puzzle[r][c]!==0)cell.classList.add('given');
+    if(r===selectedR&&c===selectedC)cell.classList.add('selected');
+    else if(selectedR>=0&&r===selectedR)cell.classList.add('highlight');
+    else if(selectedC>=0&&c===selectedC)cell.classList.add('highlight');
+    else if(selectedR>=0&&selectedC>=0){
+      let sr=(selectedR/3|0)*3,sc=(selectedC/3|0)*3;
+      if(r>=sr&&r<sr+3&&c>=sc&&c<sc+3)cell.classList.add('highlight')
+    }
+    if(selectedR>=0&&selectedC>=0&&board[selectedR][selectedC]!==0&&board[r][c]===board[selectedR][selectedC])cell.classList.add('same-num');
+    let val=board[r][c];
+    if(val!==0){
+      cell.textContent=val;
+      if(!puzzle[r][c]&&!isValidCell(r,c,val))cell.classList.add('error')
+    }else if(notes[r][c].size>0){
+      cell.classList.add('note');
+      for(let n=1;n<=9;n++){
+        let s=document.createElement('span');s.textContent=notes[r][c].has(n)?n:'';
+        cell.appendChild(s)
+      }
+    }
+    cell.dataset.r=r;cell.dataset.c=c;
+    cell.addEventListener('click',()=>selectCell(r,c));
+    b.appendChild(cell)
+  }
+}
+
+function isValidCell(r,c,val){
+  if(puzzle[r][c]!==0)return true;
+  for(let i=0;i<9;i++){
+    if(i!==c&&board[r][i]===val)return false;
+    if(i!==r&&board[i][c]===val)return false
+  }
+  let br=(r/3|0)*3,bc=(c/3|0)*3;
+  for(let i=br;i<br+3;i++)for(let j=bc;j<bc+3;j++){
+    if((i!==r||j!==c)&&board[i][j]===val)return false
+  }
+  return true
+}
+
+function selectCell(r,c){
+  if(gameOver||puzzle[r][c]!==0){selectedR=r;selectedC=c;render();return}
+  selectedR=r;selectedC=c;render()
+}
+
+function placeNumber(n){
+  if(selectedR<0||selectedC<0||gameOver||puzzle[selectedR][selectedC]!==0)return;
+  let r=selectedR,c=selectedC;
+  if(mode==='note'){
+    if(board[r][c]!==0)return;
+    if(notes[r][c].has(n))notes[r][c].delete(n);else notes[r][c].add(n);
+    render();updateCounts();return
+  }
+  if(mode==='erase'){
+    if(board[r][c]===0&&notes[r][c].size>0){notes[r][c].clear();history.push({r,c,prev:0,notes:new Set()});render();updateCounts()}
+    else if(board[r][c]!==0){history.push({r,c,prev:board[r][c],notes:new Set(notes[r][c])});board[r][c]=0;render();updateCounts()}
+    return
+  }
+  if(board[r][c]===n){history.push({r,c,prev:n,notes:new Set(notes[r][c])});board[r][c]=0;notes[r][c].clear();render();updateCounts();return}
+  if(!isValidCell(r,c,n)){
+    mistakes++;document.getElementById('mistakes').textContent='❌ '+mistakes;
+    let cells=document.querySelectorAll('.cell');
+    cells[r*9+c].classList.remove('error');void cells[r*9+c].offsetWidth;
+    cells[r*9+c].classList.add('error');
+    return
+  }
+  history.push({r,c,prev:board[r][c],notes:new Set(notes[r][c])});
+  board[r][c]=n;notes[r][c].clear();render();updateCounts();
+  if(checkWin())win()
+}
+
+function checkWin(){
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){if(board[r][c]!==solution[r][c])return false}
+  return true
+}
+
+function win(){
+  gameOver=true;clearInterval(timerInterval);
+  document.getElementById('board').classList.add('won');
+  let m=Math.floor(timer/60),s=timer%60;
+  document.getElementById('win-time').textContent='Time: '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  document.getElementById('win-level').textContent='Level: '+DIFF_NAMES[difficulty];
+  setTimeout(()=>document.getElementById('win-overlay').classList.add('show'),800)
+}
+
+function undo(){
+  if(history.length===0)return;
+  let h=history.pop();board[h.r][h.c]=h.prev;notes[h.r][h.c]=h.notes;render();updateCounts()
+}
+
+function giveHint(){
+  if(gameOver)return;
+  // Find any empty or wrong cell and fill with solution
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    if(puzzle[r][c]===0&&board[r][c]!==solution[r][c]){
+      history.push({r,c,prev:board[r][c],notes:new Set(notes[r][c])});
+      board[r][c]=solution[r][c];notes[r][c].clear();selectedR=r;selectedC=c;
+      render();updateCounts();if(checkWin())win();
+      return
+    }
+  }
+}
+
+function checkBoard(){
+  let errors=0;
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    if(puzzle[r][c]===0&&board[r][c]!==0&&board[r][c]!==solution[r][c])errors++
+  }
+  if(errors===0)alert('✓ All correct so far!');else alert('✗ '+errors+' incorrect cell(s) found')
+}
+
+function updateCounts(){
+  let counts={};for(let i=1;i<=9;i++)counts[i]=9;
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){let v=board[r][c];if(v>0)counts[v]--}
+  document.querySelectorAll('.num-btn').forEach(b=>{
+    let n=parseInt(b.dataset.n);b.querySelector('.count').textContent=counts[n];
+    b.classList.toggle('completed',counts[n]<=0)
+  })
+}
+
+// ─── UI Setup ────────────────────────────────────────────────
+document.querySelectorAll('.controls .btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.controls .btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');difficulty=parseInt(b.dataset.diff);generate()
+  })
+});
+document.querySelectorAll('.mode-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');mode=b.dataset.mode
+  })
+});
+let np=document.getElementById('num-pad');
+for(let i=1;i<=9;i++){
+  let b=document.createElement('button');b.className='num-btn';b.dataset.n=i;
+  b.innerHTML=i+'<span class="count">9</span>';
+  b.addEventListener('click',()=>placeNumber(i));
+  np.appendChild(b)
+}
+document.getElementById('new-game').addEventListener('click',generate);
+document.getElementById('hint-btn').addEventListener('click',giveHint);
+document.getElementById('check-btn').addEventListener('click',checkBoard);
+document.getElementById('undo-btn').addEventListener('click',undo);
+document.getElementById('play-again').addEventListener('click',()=>{document.getElementById('win-overlay').classList.remove('show');generate()});
+
+// Keyboard support
+document.addEventListener('keydown',e=>{
+  if(e.key>='1'&&e.key<='9')placeNumber(parseInt(e.key));
+  if(e.key==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undo()}
+  if(e.key==='n'||e.key==='N'){mode='note';document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));document.querySelector('[data-mode=note]').classList.add('active')}
+  if(e.key==='v'||e.key==='V'){mode='value';document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));document.querySelector('[data-mode=value]').classList.add('active')}
+  if(e.key==='e'||e.key==='E'){mode='erase';document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));document.querySelector('[data-mode=erase]').classList.add('active')}
+  if(e.key==='ArrowUp'&&selectedR>0){selectCell(selectedR-1,selectedC)}
+  if(e.key==='ArrowDown'&&selectedR<8){selectCell(selectedR+1,selectedC)}
+  if(e.key==='ArrowLeft'&&selectedC>0){selectCell(selectedR,selectedC-1)}
+  if(e.key==='ArrowRight'&&selectedC<8){selectCell(selectedR,selectedC+1)}
+  if(e.key==='h'||e.key==='H')giveHint()
+});
+
+// Start
+generate()
+</script>
+</body>
+</html>
