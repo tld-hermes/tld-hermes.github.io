@@ -1,3 +1,3 @@
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY html/ /usr/share/nginx/html/
+COPY index.html 2048/ sudoku/ lianliankan/ .nojekyll /usr/share/nginx/html/
