@@ -23,6 +23,14 @@
       "url": "lianliankan/",
       "status": "live",
       "tags": ["puzzle", "memory", "pokemon", "javascript"]
+    },
+    {
+      "id": "sokoban",
+      "name": "Sokoban 推箱子",
+      "description": "Classic Sokoban puzzle game with 100 levels. Push boxes to their designated spots. Features undo, reset, move counter, and level select.",
+      "url": "sokoban/",
+      "status": "live",
+      "tags": ["puzzle", "sokoban", "javascript", "100-levels"]
     }
   ],
   "version": "1.1.0"

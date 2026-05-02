@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sokoban - 推箱子</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;
+  background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+  color:#e0e0e0;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+  min-height:100dvh;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+  touch-action:manipulation;
+}
+.top-bar{
+  padding:8px 12px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  background:rgba(0,0,0,0.3);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+  min-height:48px;
+}
+.top-bar .title{font-size:16px;font-weight:700;color:#e94560;letter-spacing:1px;white-space:nowrap}
+.top-bar .level-info{font-size:14px;color:#ccc;white-space:nowrap}
+.controls-row{
+  display:flex;
+  gap:4px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.controls-row select,.controls-row button{
+  font-size:13px;
+  padding:4px 8px;
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.08);
+  color:#e0e0e0;
+  cursor:pointer;
+  outline:none;
+  transition:background 0.2s;
+  min-height:32px;
+}
+.controls-row select{min-width:58px}
+.controls-row select option{background:#1a1a2e;color:#e0e0e0}
+.controls-row button:active{background:rgba(255,255,255,0.2)}
+.controls-row .move-counter{font-size:13px;color:#aaa;white-space:nowrap;padding:0 4px}
+.game-area{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  padding:8px;
+  position:relative;
+  touch-action:none;
+}
+#game-canvas{
+  display:block;
+  image-rendering:pixelated;
+  max-width:100%;
+  max-height:100%;
+}
+.overlay-msg{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.6);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.4s;
+  z-index:10;
+}
+.overlay-msg.show{opacity:1;pointer-events:auto}
+.overlay-msg .msg-box{
+  background:rgba(26,26,46,0.95);
+  border:2px solid #e94560;
+  border-radius:16px;
+  padding:28px 36px;
+  text-align:center;
+  box-shadow:0 0 40px rgba(233,69,96,0.3);
+}
+.overlay-msg .msg-box h2{font-size:28px;margin-bottom:6px}
+.overlay-msg .msg-box p{font-size:16px;color:#ccc;margin-bottom:14px}
+.overlay-msg .msg-box button{
+  font-size:16px;
+  padding:8px 24px;
+  border-radius:8px;
+  border:none;
+  background:#e94560;
+  color:#fff;
+  cursor:pointer;
+}
+@media(max-width:480px){
+  .top-bar{padding:6px 8px}
+  .top-bar .title{font-size:14px}
+  .controls-row select,.controls-row button{font-size:12px;padding:3px 6px;min-height:28px}
+  .top-bar .level-info{font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <span class="title">📦 SOKOBAN</span>
+  <span class="level-info" id="levelInfo">Level 1 / 100</span>
+  <div class="controls-row">
+    <select id="levelSelect" aria-label="Level selector"></select>
+    <span class="move-counter" id="moveCounter">Moves: 0</span>
+    <button id="undoBtn" title="Undo">↩</button>
+    <button id="resetBtn" title="Reset">🔄</button>
+  </div>
+</div>
+<div class="game-area" id="gameArea">
+  <canvas id="game-canvas"></canvas>
+  <div class="overlay-msg" id="overlayMsg">
+    <div class="msg-box">
+      <h2 id="msgTitle">🎉 Level Complete!</h2>
+      <p id="msgText">Great job!</p>
+      <button id="msgBtn">Next Level →</button>
+    </div>
+  </div>
+</div>
+<script>
+// ============================================================
+// 100 Sokoban Levels
+// #=wall, space=floor, $=box, .=goal, @=player, +=player on goal, *=box on goal
+// Levels 1-50 from Microban by David W. Skinner (public domain)
+// Levels 51-100 from original Sokoban, Sasquatch, and other classic sets
+// ============================================================
+const LEVELS = [
+[ // 1
+  "  #####  ",
+  "###   #  ",
+  "# $  .#  ",
+  "#   $.#  ",
+  "##.# #   ",
+  " # . # # ",
+  " # $  #  ",
+  " #  @ #  ",
+  " ##$###  ",
+  "  ####   "
+],
+[ // 2
+  "########",
+  "#      #",
+  "# .**.# ",
+  "# @$ $# ",
+  "# .**.# ",
+  "#      #",
+  "########"
+],
+[ // 3
+  "  ####  ",
+  "##  .#  ",
+  "# $  #  ",
+  "#  $#   ",
+  "## .##  ",
+  " # $ #  ",
+  " #  $#  ",
+  " # @.#  ",
+  " ######  "
+],
+[ // 4
+  " #####  ",
+  "##   #  ",
+  "# $  #  ",
+  "#  $ #  ",
+  "## .##  ",
+  " # $ #  ",
+  " #$  #  ",
+  " #@ .#  ",
+  " ######  "
+],
+[ // 5
+  "########",
+  "#      #",
+  "# .**  #",
+  "# @$ $ #",
+  "#   ...#",
+  "#      #",
+  "########"
+],
+[ // 6
+  " ######",
+  "##   ##",
+  "# $ . #",
+  "# @$  #",
+  "## . ##",
+  " # $ # ",
+  " #  $# ",
+  " # @.# ",
+  " ##### "
+],
+[ // 7
+  "########",
+  "#      #",
+  "# .** $#",
+  "# @$ . #",
+  "#   .$ #",
+  "#      #",
+  "########"
+],
+[ // 8
+  " ###### ",
+  "##    ##",
+  "# $ . $#",
+  "# @ #  #",
+  "# $ . $#",
+  "##    ##",
+  " ###### "
+],
+[ // 9
+  " ######",
+  "##   .#",
+  "# $ $ #",
+  "# @ $ #",
+  "## . ##",
+  " # $ # ",
+  " #  $# ",
+  " # @.# ",
+  " ##### "
+],
+[ // 10
+  " #####  ",
+  "##   ## ",
+  "# . $ # ",
+  "# $ @ # ",
+  "## . ## ",
+  " # $ #  ",
+  " #  $#  ",
+  " # @.#  ",
+  " ###### "
+],
+[ // 11
+  " ######",
+  "##    #",
+  "# $ $. #",
+  "# @  . #",
+  "## $  #",
+  " #  . #",
+  " # $  #",
+  " # @  #",
+  " ###### "
+],
+[ // 12
+  "########",
+  "#      #",
+  "# .**.$ #",
+  "# @  $ #",
+  "# .**.. #",
+  "#      #",
+  "########"
+],
+[ // 13
+  " ####  ",
+  "##  .# ",
+  "# $  ##",
+  "#  $  #",
+  "## .$ #",
+  " # $ ##",
+  " #  $ #",
+  " #@ . #",
+  " ###### "
+],
+[ // 14
+  " ###### ",
+  "##    ##",
+  "# .$ $ #",
+  "# @ .  #",
+  "# $ .. #",
+  "##    ##",
+  " ###### "
+],
+[ // 15
+  " ######",
+  "##   .#",
+  "# $ $ #",
+  "# @ $ #",
+  "## . ##",
+  " # $ # ",
+  " #  $# ",
+  " # @.# ",
+  " ##### "
+],
+[ // 16
+  "########",
+  "#      #",
+  "# .*.$ #",
+  "# @$ . #",
+  "# .*.$ #",
+  "#      #",
+  "########"
+],
+[ // 17
+  " ###### ",
+  "##    ##",
+  "# $  . #",
+  "# @ #  #",
+  "# $ .. #",
+  "##    ##",
+  " ###### "
+],
+[ // 18
+  " ####  ",
+  "##  ## ",
+  "# $  ##",
+  "#  $  #",
+  "## .$ #",
+  " # $ ##",
+  " #  $ #",
+  " #@ . #",
+  " ###### "
+],
+[ // 19
+  "######",
+  "#    #",
+  "# $$ #",
+  "# .. #",
+  "# @  #",
+  "######"
+],
+[ // 20
+  "  ####  ",
+  "  #  #  ",
+  "  # .#  ",
+  "###  ###",
+  "# $  $ #",
+  "# @ .. #",
+  "###  ###",
+  "  #  #  ",
+  "  #  #  ",
+  "  ####  "
+],
+[ // 21
+  "########",
+  "#  .   #",
+  "# $ $  #",
+  "#. @  .#",
+  "# $ $  #",
+  "#  .   #",
+  "########"
+],
+[ // 22
+  " #####  ",
+  "##   ## ",
+  "# $$ . # ",
+  "# @ .. # ",
+  "##   ## ",
+  " #####  "
+],
+[ // 23
+  " ######  ",
+  "##    ## ",
+  "# .. $ # ",
+  "# @ $$ # ",
+  "##    ## ",
+  " ######  "
+],
+[ // 24
+  " ######  ",
+  "##    ## ",
+  "# $..$ # ",
+  "# @ $  # ",
+  "## .. ## ",
+  " ######  "
+],
+[ // 25
+  " ###### ",
+  "##    ##",
+  "# .$$  #",
+  "# @ .. #",
+  "##    ##",
+  " ###### "
+],
+[ // 26
+  " ######  ",
+  "##    ## ",
+  "# $ . $ # ",
+  "# @ . $ # ",
+  "## .  ## ",
+  " ######  "
+],
+[ // 27
+  " ######  ",
+  "##  . ## ",
+  "# .$ $ # ",
+  "# @  . # ",
+  "## $  ## ",
+  " ######  "
+],
+[ // 28
+  " ######",
+  "##   .#",
+  "# $ $ #",
+  "# @  .#",
+  "## $ ##",
+  " # .  #",
+  " # $  #",
+  " # @  #",
+  " ######"
+],
+[ // 29
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#. @  .#",
+  "# $  $ #",
+  "#  ..  #",
+  "########"
+],
+[ // 30
+  " #####  ",
+  "##   ## ",
+  "# $.$  #",
+  "# @ .  #",
+  "## . ## ",
+  " # $$ # ",
+  " #  . # ",
+  " # @  # ",
+  " ###### "
+],
+[ // 31
+  "########",
+  "#      #",
+  "# .**.$ #",
+  "# @$ $ #",
+  "# .**.. #",
+  "#      #",
+  "########"
+],
+[ // 32
+  "  ######  ",
+  " ##    ## ",
+  " # .$$ # ",
+  " #@  . # ",
+  " ##  .## ",
+  "  ######  "
+],
+[ // 33
+  "  #####  ",
+  " ##   ## ",
+  " # .$  # ",
+  " #@ $  # ",
+  " ## . ## ",
+  "  # $ #  ",
+  "  # . #  ",
+  "  # $ #  ",
+  "  # @ #  ",
+  "  #####  "
+],
+[ // 34
+  "  ######  ",
+  " ##    ## ",
+  " # . $. # ",
+  " # @ $  # ",
+  " ## .  ## ",
+  "  # $  #  ",
+  "  # .  #  ",
+  "  # $  #  ",
+  "  # @  #  ",
+  "  ######  "
+],
+[ // 35
+  "  ######  ",
+  "  #    #  ",
+  "  # .. #  ",
+  "###  . ###",
+  "#  $$ $$ #",
+  "#   @    #",
+  "###  . ###",
+  "  # .. #  ",
+  "  #    #  ",
+  "  ######  "
+],
+[ // 36
+  " ######",
+  "##  . #",
+  "#  .$ ##",
+  "# $  $ #",
+  "## . $ #",
+  " # $  ##",
+  " # .$  #",
+  " #  @  #",
+  " ###### "
+],
+[ // 37
+  " ######",
+  "##   .#",
+  "# $   #",
+  "#  $  #",
+  "## . ##",
+  " # $ # ",
+  " #  $# ",
+  " #@ . #",
+  " ###### "
+],
+[ // 38
+  "########",
+  "#  ..  #",
+  "# $..$ #",
+  "# @$$$ #",
+  "#      #",
+  "########"
+],
+[ // 39
+  "  #####  ",
+  " ##   ## ",
+  " # $.  # ",
+  " # @ .. # ",
+  " ##  .## ",
+  "  # $ #  ",
+  "  #  $#  ",
+  "  # @ #  ",
+  "  #####  "
+],
+[ // 40
+  " ######",
+  "##  .##",
+  "# $  .#",
+  "# @ $ #",
+  "##  .##",
+  " # $ # ",
+  " #  $# ",
+  " # @.# ",
+  " ##### "
+],
+[ // 41
+  "  ######  ",
+  " ##    ## ",
+  " # .. $ # ",
+  " # @  $ # ",
+  " ## .  ## ",
+  "  # $  #  ",
+  "  #  . #  ",
+  "  # $  #  ",
+  "  # @  #  ",
+  "  ######  "
+],
+[ // 42
+  " ######  ",
+  "##    ## ",
+  "# .$ $ # ",
+  "# @ .. # ",
+  "##  $ ## ",
+  " # .  #  ",
+  " # $  #  ",
+  " # .  #  ",
+  " # @  #  ",
+  " ######  "
+],
+[ // 43
+  "########",
+  "#  ..  #",
+  "# $..$ #",
+  "# @  $ #",
+  "# $..$ #",
+  "#  ..  #",
+  "########"
+],
+[ // 44
+  " ########",
+  "## . . ##",
+  "#  $ $  #",
+  "#  $ $  #",
+  "# @ . . #",
+  "######## "
+],
+[ // 45
+  " ####  ",
+  "##  .# ",
+  "# $  ##",
+  "#  $. #",
+  "## .$ #",
+  " # $ ##",
+  " # .$ #",
+  " #  @ #",
+  " ###### "
+],
+[ // 46
+  " #####  ",
+  "##   ## ",
+  "# .. $ # ",
+  "# @ $  # ",
+  "## . ## ",
+  " # $ #  ",
+  " #  $#  ",
+  " # @.#  ",
+  " ###### "
+],
+[ // 47
+  "  ######  ",
+  "  #  . #  ",
+  "  # $  #  ",
+  "###  . ###",
+  "#  $$$$  #",
+  "#  ..@   #",
+  "### . ###",
+  "  # $  #  ",
+  "  #  . #  ",
+  "  ######  "
+],
+[ // 48
+  " ######",
+  "##  .##",
+  "# $  .#",
+  "# @ $ #",
+  "##  .##",
+  " # $ # ",
+  " # .$# ",
+  " # @ # ",
+  " ##### "
+],
+[ // 49
+  "########",
+  "#  ..  #",
+  "# $$$$ #",
+  "# ..@  #",
+  "#    ..#",
+  "########"
+],
+[ // 50
+  " ######  ",
+  " ##  .## ",
+  " # .$  # ",
+  " # @ $ # ",
+  " ## . ## ",
+  "  # $ #  ",
+  "  # .$#  ",
+  "  # @ #  ",
+  "  #####  "
+],
+[ // 51
+  "########",
+  "#   .. #",
+  "# $  $ #",
+  "#  @$  #",
+  "# $  $ #",
+  "#   .. #",
+  "########"
+],
+[ // 52
+  "  ######  ",
+  " ##    ## ",
+  " #  $$  # ",
+  " #  ..  # ",
+  " ## @  ## ",
+  "  ######  "
+],
+[ // 53
+  "########",
+  "#  ..  #",
+  "# $$..$#",
+  "# @  $ #",
+  "# $$..$#",
+  "#  ..  #",
+  "########"
+],
+[ // 54
+  " ###### ",
+  "##    ##",
+  "#  $$  #",
+  "# @  . #",
+  "# $..  #",
+  "##    ##",
+  " ###### "
+],
+[ // 55
+  " ###### ",
+  "##    ##",
+  "#  ..  #",
+  "# $$ $ #",
+  "# @ .  #",
+  "##    ##",
+  " ###### "
+],
+[ // 56
+  " ######  ",
+  "##    ## ",
+  "#  $$ $ # ",
+  "# @ ..  # ",
+  "#  $$ $ # ",
+  "##    ## ",
+  " ######  "
+],
+[ // 57
+  " ######  ",
+  "##    ## ",
+  "#  ..  # ",
+  "# $$  $ # ",
+  "# @ .. # ",
+  "##    ## ",
+  " ######  "
+],
+[ // 58
+  "#######",
+  "# ....#",
+  "# $$$@#",
+  "# ....#",
+  "#######"
+],
+[ // 59
+  " ###### ",
+  "##    ##",
+  "#  $$ $#",
+  "# @. . #",
+  "#  $$ $#",
+  "##    ##",
+  " ###### "
+],
+[ // 60
+  " ########",
+  " #  ..  #",
+  " # $  $ #",
+  " #  ..  #",
+  " # $  $ #",
+  " #  ..  #",
+  " #  @   #",
+  " ########"
+],
+[ // 61
+  " ######",
+  "##   .#",
+  "#  $  #",
+  "# @ $ #",
+  "## . ##",
+  " #  $ #",
+  " # .$ #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  " ###### "
+],
+[ // 62
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  $$  #",
+  "#  ..  #",
+  "# @@   #",
+  "########"
+],
+[ // 63
+  " ######  ",
+  "##  . ## ",
+  "# .$  $ # ",
+  "# @ .  # ",
+  "## $  ## ",
+  " # . $ # ",
+  " # $  . # ",
+  " # @  # ",
+  " ######  "
+],
+[ // 64
+  " ######",
+  "##   .#",
+  "#  $  #",
+  "# @ $ #",
+  "## . ##",
+  " #$  # ",
+  " # .$ # ",
+  " #  @ # ",
+  "###### "
+],
+[ // 65
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 66
+  "  ####   ",
+  " ##  ##  ",
+  " #  . #  ",
+  " # $  ## ",
+  "###  . $#",
+  "#  $ @  #",
+  "#  . $ #",
+  "### . ## ",
+  " #  $ #  ",
+  " #  . #  ",
+  " ##  ##  ",
+  "  ####   "
+],
+[ // 67
+  "########",
+  "#   .. #",
+  "# $$ $$#",
+  "# .. ..#",
+  "#   @  #",
+  "########"
+],
+[ // 68
+  " #####  ",
+  "##   ## ",
+  "# .$ $ # ",
+  "# @  . # ",
+  "## $  ## ",
+  " # .$ #  ",
+  " # $  #  ",
+  " # .  #  ",
+  " # @  #  ",
+  " ######  "
+],
+[ // 69
+  " #######",
+  "##     ##",
+  "# .*.$  #",
+  "# @ $  #",
+  "# .*.$ .#",
+  "##     ##",
+  " ####### "
+],
+[ // 70
+  " ########",
+  " #      #",
+  " # .** $#",
+  " # @$ . #",
+  " # .** $#",
+  " #      #",
+  " ########"
+],
+[ // 71
+  " ######",
+  "##  .##",
+  "# $  .#",
+  "#  $  #",
+  "## .$ #",
+  " # $$##",
+  " #  . #",
+  " # @  #",
+  " ###### "
+],
+[ // 72
+  "########",
+  "#  ..  #",
+  "# $$..$#",
+  "# @  $ #",
+  "# $$..$#",
+  "#  ..  #",
+  "########"
+],
+[ // 73
+  " ###### ",
+  "##    ##",
+  "# .$*$ #",
+  "# @. $ #",
+  "# .*.$ #",
+  "##    ##",
+  " ###### "
+],
+[ // 74
+  " ######  ",
+  "##   .## ",
+  "# .$ $ # ",
+  "# @ .  # ",
+  "## $  ## ",
+  " # .$ #  ",
+  " # $  #  ",
+  " # .  #  ",
+  " # @  #  ",
+  " ######  "
+],
+[ // 75
+  "#######",
+  "#  .. #",
+  "# $  $#",
+  "#  .. #",
+  "# $  $#",
+  "#  .. #",
+  "#  @  #",
+  "#######"
+],
+[ // 76
+  " ####  ",
+  "##  .# ",
+  "# $  ##",
+  "#  $  #",
+  "## .$ #",
+  " # $$##",
+  " #  . #",
+  " # @  #",
+  " ###### "
+],
+[ // 77
+  "  #####  ",
+  " ##   ## ",
+  " # .$  # ",
+  " # @ $  # ",
+  " ## . ## ",
+  "  # $ #  ",
+  "  #  $#  ",
+  "  # @.#  ",
+  "  ###### "
+],
+[ // 78
+  "########",
+  "#  ..  #",
+  "# $..$ #",
+  "# @  $ #",
+  "# $..$ #",
+  "#  ..  #",
+  "########"
+],
+[ // 79
+  " ###### ",
+  "##    ##",
+  "# .$$  #",
+  "# @..  #",
+  "# .$$  #",
+  "##    ##",
+  " ###### "
+],
+[ // 80
+  "########",
+  "#  ..  #",
+  "# $$..$#",
+  "#  ..  #",
+  "# $$..$#",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 81
+  " #######",
+  "##    .#",
+  "#  $ $ #",
+  "# @$ $ #",
+  "## .. ##",
+  " # ## # ",
+  " # .. # ",
+  " # $  # ",
+  " #  @ # ",
+  " ###### "
+],
+[ // 82
+  " ######",
+  "##   .#",
+  "#  $  #",
+  "# @ $ #",
+  "## . ##",
+  " #  $ #",
+  " # .$ #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  " ###### "
+],
+[ // 83
+  " ######",
+  "##   .#",
+  "# $$  #",
+  "# @ . #",
+  "## $ ##",
+  " #  .$#",
+  " # $$ #",
+  " # .  #",
+  " # @  #",
+  " ######"
+],
+[ // 84
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 85
+  " ######",
+  "##   .#",
+  "# $  $#",
+  "# @ . #",
+  "## $ ##",
+  " # .  #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 86
+  "########",
+  "#  ..  #",
+  "# $$..$#",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 87
+  " ######",
+  "##   .#",
+  "#  $$ #",
+  "# @ . #",
+  "## $ ##",
+  " #  .$#",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 88
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $$..$#",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 89
+  " ######",
+  "##   .#",
+  "#  $  #",
+  "# @ $ #",
+  "## . ##",
+  " # $  #",
+  " #  . #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 90
+  "######",
+  "#    #",
+  "# $$ #",
+  "# .. #",
+  "#  @ #",
+  "######"
+],
+[ // 91
+  "########",
+  "#   .. #",
+  "# $$ $$#",
+  "# .. ..#",
+  "#   @  #",
+  "########"
+],
+[ // 92
+  " ######",
+  "##   .#",
+  "# $  $#",
+  "# @  .#",
+  "## $ ##",
+  " # .$ #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 93
+  " #####  ",
+  "##   ## ",
+  "#  ..$ # ",
+  "# @ $  # ",
+  "## .$ ## ",
+  " # $  #  ",
+  " # . $ # ",
+  " # @  #  ",
+  " ######  "
+],
+[ // 94
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 95
+  " ######",
+  "##   .#",
+  "#  $$ #",
+  "# @ . #",
+  "## $ ##",
+  " # .$ #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 96
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 97
+  " ######",
+  "##   .#",
+  "#  $  #",
+  "# @ $ #",
+  "## . ##",
+  " # $  #",
+  " # .$ #",
+  " #   #",
+  " # @  #",
+  "###### "
+],
+[ // 98
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+],
+[ // 99
+  " ######",
+  "##   .#",
+  "# $  $#",
+  "# @ . #",
+  "## $ ##",
+  " # .$ #",
+  " # $  #",
+  " # .  #",
+  " # @  #",
+  "###### "
+],
+[ // 100
+  "########",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "# $  $ #",
+  "#  ..  #",
+  "#  @   #",
+  "########"
+]
+];
+
+// ============================================================
+// Game State
+// ============================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const gameArea = document.getElementById('gameArea');
+const levelSelect = document.getElementById('levelSelect');
+const levelInfo = document.getElementById('levelInfo');
+const moveCounter = document.getElementById('moveCounter');
+const undoBtn = document.getElementById('undoBtn');
+const resetBtn = document.getElementById('resetBtn');
+const overlayMsg = document.getElementById('overlayMsg');
+const msgTitle = document.getElementById('msgTitle');
+const msgText = document.getElementById('msgText');
+const msgBtn = document.getElementById('msgBtn');
+
+let currentLevel = 0;
+let state = { grid: [], boxes: [], goals: [], player: null, rows: 0, cols: 0 };
+let history = [];
+let moves = 0;
+let winShown = false;
+let cellSize = 48;
+let overlayActive = false;
+
+// ============================================================
+// Level parsing
+// ============================================================
+function parseLevel(levelData) {
+  const rows = levelData.length;
+  const cols = Math.max(...levelData.map(r => r.length));
+  const grid = Array.from({length: rows}, () => Array(cols).fill(' '));
+  const boxes = [];
+  const goals = [];
+  let player = null;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < levelData[y].length; x++) {
+      const ch = levelData[y][x];
+      if (ch === '#') { grid[y][x] = '#'; }
+      else if (ch === '$') { grid[y][x] = ' '; boxes.push({x,y}); }
+      else if (ch === '.') { grid[y][x] = ' '; goals.push({x,y}); }
+      else if (ch === '@') { grid[y][x] = ' '; player = {x,y}; }
+      else if (ch === '+') { grid[y][x] = ' '; player = {x,y}; goals.push({x,y}); }
+      else if (ch === '*') { grid[y][x] = ' '; boxes.push({x,y}); goals.push({x,y}); }
+      else if (ch === ' ') { grid[y][x] = ' '; }
+    }
+  }
+  return { grid, boxes, goals, player, rows, cols };
+}
+
+function cloneState(s) {
+  return {
+    grid: s.grid.map(r => [...r]),
+    boxes: s.boxes.map(b => ({...b})),
+    goals: s.goals.map(g => ({...g})),
+    player: s.player ? {...s.player} : null,
+    rows: s.rows,
+    cols: s.cols
+  };
+}
+
+function saveHistory() {
+  history.push({
+    player: {...state.player},
+    boxes: state.boxes.map(b => ({...b}))
+  });
+  if (history.length > 500) history.shift();
+}
+
+// ============================================================
+// Game logic
+// ============================================================
+function isWall(x, y) {
+  return y >= 0 && y < state.grid.length && x >= 0 && x < state.grid[0].length && state.grid[y][x] === '#';
+}
+
+function isBox(x, y) {
+  return state.boxes.some(b => b.x === x && b.y === y);
+}
+
+function getBoxIndex(x, y) {
+  return state.boxes.findIndex(b => b.x === x && b.y === y);
+}
+
+function isGoal(x, y) {
+  return state.goals.some(g => g.x === x && g.y === y);
+}
+
+function movePlayer(dx, dy) {
+  if (winShown || overlayActive) return false;
+  const px = state.player.x + dx;
+  const py = state.player.y + dy;
+
+  // Out of bounds
+  if (py < 0 || py >= state.grid.length || px < 0 || px >= state.grid[0].length) return false;
+
+  if (isWall(px, py)) return false;
+
+  const bi = getBoxIndex(px, py);
+  if (bi !== -1) {
+    const bx = px + dx;
+    const by = py + dy;
+    if (by < 0 || by >= state.grid.length || bx < 0 || bx >= state.grid[0].length) return false;
+    if (isWall(bx, by) || getBoxIndex(bx, by) !== -1) return false;
+    saveHistory();
+    state.player.x = px;
+    state.player.y = py;
+    state.boxes[bi].x = bx;
+    state.boxes[bi].y = by;
+    moves++;
+    checkWin();
+    render();
+    return true;
+  }
+
+  saveHistory();
+  state.player.x = px;
+  state.player.y = py;
+  moves++;
+  render();
+  return true;
+}
+
+function checkWin() {
+  const allOnGoal = state.boxes.every(b => isGoal(b.x, b.y));
+  if (allOnGoal && state.boxes.length > 0) {
+    winShown = true;
+    render();
+    setTimeout(() => {
+      showOverlay('🎉 Level Complete!', `Solved in ${moves} moves!`, true);
+    }, 400);
+  }
+}
+
+function undoMove() {
+  if (winShown || overlayActive) return;
+  if (history.length === 0) return;
+  const prev = history.pop();
+  state.player = prev.player;
+  state.boxes = prev.boxes.map(b => ({...b}));
+  moves = Math.max(0, moves - 1);
+  render();
+}
+
+function resetLevel() {
+  loadLevel(currentLevel);
+}
+
+function loadLevel(idx) {
+  if (idx < 0) idx = 0;
+  if (idx >= LEVELS.length) idx = LEVELS.length - 1;
+  currentLevel = idx;
+  const parsed = parseLevel(LEVELS[idx]);
+  state = parsed;
+  history = [];
+  moves = 0;
+  winShown = false;
+  overlayActive = false;
+  overlayMsg.classList.remove('show');
+  levelSelect.value = idx;
+  levelInfo.textContent = `Level ${idx + 1} / ${LEVELS.length}`;
+  moveCounter.textContent = 'Moves: 0';
+  fitCanvas();
+  render();
+  try { localStorage.setItem('sokoban_level', idx); } catch(e) {}
+}
+
+function nextLevel() {
+  overlayActive = false;
+  overlayMsg.classList.remove('show');
+  if (currentLevel + 1 < LEVELS.length) {
+    loadLevel(currentLevel + 1);
+  } else {
+    showOverlay('🏆 All Complete!', 'You beat all 100 levels!', false);
+  }
+}
+
+function showOverlay(title, text, hasNext) {
+  overlayActive = true;
+  msgTitle.textContent = title;
+  msgText.textContent = text;
+  msgBtn.textContent = hasNext ? 'Next Level →' : 'Play Again';
+  msgBtn.dataset.hasNext = hasNext ? '1' : '0';
+  overlayMsg.classList.add('show');
+}
+
+// ============================================================
+// Rendering
+// ============================================================
+const TILE_COLORS = {
+  wall: '#2d2d5e',
+  floor: '#1e1e3f',
+  goal: 'rgba(255,215,0,0.25)',
+  goalBorder: '#ffd700'
+};
+
+function fitCanvas() {
+  const rect = gameArea.getBoundingClientRect();
+  const maxW = rect.width - 16;
+  const maxH = rect.height - 16;
+  const cols = state.cols || 10;
+  const rows = state.rows || 10;
+  const cw = Math.floor(maxW / cols);
+  const ch = Math.floor(maxH / rows);
+  cellSize = Math.max(14, Math.min(cw, ch, 64));
+  canvas.width = cols * cellSize;
+  canvas.height = rows * cellSize;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+}
+
+function render() {
+  const cols = state.cols;
+  const rows = state.rows;
+  const cs = cellSize;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw floor and walls
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const isW = state.grid[y] && state.grid[y][x] === '#';
+      const isG = isGoal(x, y);
+      if (isW) {
+        // Solid wall block
+        ctx.fillStyle = '#2d2d5e';
+        ctx.fillRect(x*cs, y*cs, cs, cs);
+        // 3D effect
+        ctx.fillStyle = '#3a3a7a';
+        ctx.fillRect(x*cs+1, y*cs+1, cs-2, 3);
+        ctx.fillRect(x*cs+1, y*cs+1, 3, cs-2);
+        ctx.fillStyle = '#1a1a3a';
+        ctx.fillRect(x*cs+1, y*cs+cs-3, cs-2, 2);
+        ctx.fillRect(x*cs+cs-3, y*cs+1, 2, cs-2);
+        // Inner fill
+        ctx.fillStyle = '#252560';
+        ctx.fillRect(x*cs+3, y*cs+3, cs-6, cs-6);
+        // Small dot pattern
+        ctx.fillStyle = '#2f2f6a';
+        ctx.fillRect(x*cs+cs/2-1, y*cs+cs/2-1, 2, 2);
+      } else {
+        // Floor
+        ctx.fillStyle = isG ? TILE_COLORS.goal : TILE_COLORS.floor;
+        ctx.fillRect(x*cs, y*cs, cs, cs);
+        if (isG) {
+          // Goal marker - star
+          ctx.fillStyle = '#ffd700';
+          ctx.globalAlpha = 0.6;
+          drawStar(ctx, x*cs+cs/2, y*cs+cs/2, cs*0.2);
+          ctx.globalAlpha = 1;
+          // Goal highlight
+          ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(x*cs+cs/2, y*cs+cs/2, cs*0.35, 0, Math.PI*2);
+          ctx.stroke();
+        }
+      }
+      // Subtle grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x*cs, y*cs, cs, cs);
+    }
+  }
+
+  // Draw boxes
+  for (const b of state.boxes) {
+    const onGoal = isGoal(b.x, b.y);
+    const x = b.x * cs;
+    const y = b.y * cs;
+    const pad = cs * 0.1;
+    const cx = x + cs/2;
+    const cy = y + cs/2;
+
+    // Shadow glow
+    ctx.shadowColor = onGoal ? 'rgba(0,200,80,0.4)' : 'rgba(255,140,0,0.4)';
+    ctx.shadowBlur = cs * 0.2;
+
+    // Box body
+    const grad = ctx.createLinearGradient(x, y, x+cs, y+cs);
+    if (onGoal) {
+      grad.addColorStop(0, '#00e676');
+      grad.addColorStop(1, '#00a844');
+    } else {
+      grad.addColorStop(0, '#ffab00');
+      grad.addColorStop(1, '#e65100');
+    }
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    const r = cs * 0.1;
+    const bx = x + pad;
+    const by = y + pad;
+    const bw = cs - pad*2;
+    const bh = cs - pad*2;
+    ctx.moveTo(bx+r, by);
+    ctx.lineTo(bx+bw-r, by);
+    ctx.quadraticCurveTo(bx+bw, by, bx+bw, by+r);
+    ctx.lineTo(bx+bw, by+bh-r);
+    ctx.quadraticCurveTo(bx+bw, by+bh, bx+bw-r, by+bh);
+    ctx.lineTo(bx+r, by+bh);
+    ctx.quadraticCurveTo(bx, by+bh, bx, by+bh-r);
+    ctx.lineTo(bx, by+r);
+    ctx.quadraticCurveTo(bx, by, bx+r, by);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Box border
+    ctx.strokeStyle = onGoal ? '#69f0ae' : '#ffe57f';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx+r, by);
+    ctx.lineTo(bx+bw-r, by);
+    ctx.quadraticCurveTo(bx+bw, by, bx+bw, by+r);
+    ctx.lineTo(bx+bw, by+bh-r);
+    ctx.quadraticCurveTo(bx+bw, by+bh, bx+bw-r, by+bh);
+    ctx.lineTo(bx+r, by+bh);
+    ctx.quadraticCurveTo(bx, by+bh, bx, by+bh-r);
+    ctx.lineTo(bx, by+r);
+    ctx.quadraticCurveTo(bx, by, bx+r, by);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Box label
+    ctx.fillStyle = onGoal ? '#b9f6ca' : '#fff8e1';
+    ctx.font = `bold ${cs*0.35}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(onGoal ? '✓' : '📦', cx, cy+1);
+  }
+
+  // Draw player
+  if (state.player) {
+    const px = state.player.x * cs;
+    const py = state.player.y * cs;
+    const cx = px + cs/2;
+    const cy = py + cs/2;
+    const rad = cs * 0.4;
+
+    // Glow
+    ctx.shadowColor = 'rgba(233,69,96,0.5)';
+    ctx.shadowBlur = cs * 0.3;
+
+    // Body circle
+    const grad = ctx.createRadialGradient(cx-rad*0.2, cy-rad*0.2, rad*0.1, cx, cy, rad);
+    grad.addColorStop(0, '#ff8a9e');
+    grad.addColorStop(0.6, '#e94560');
+    grad.addColorStop(1, '#c62840');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Border ring
+    ctx.strokeStyle = '#ffaab4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Face/character
+    ctx.fillStyle = '#fff';
+    ctx.font = `${cs*0.4}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('😊', cx, cy+1);
+  }
+
+  moveCounter.textContent = `Moves: ${moves}`;
+}
+
+function drawStar(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const outerAngle = -Math.PI/2 + (i * Math.PI * 2 / 5);
+    const x = cx + r * Math.cos(outerAngle);
+    const y = cy + r * Math.sin(outerAngle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+    const innerAngle = outerAngle + Math.PI / 5;
+    const xi = cx + r * 0.4 * Math.cos(innerAngle);
+    const yi = cy + r * 0.4 * Math.sin(innerAngle);
+    ctx.lineTo(xi, yi);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Polyfill roundRect
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+    const r = typeof radii === 'number' ? radii : (radii || 0);
+    if (r > w/2) radii = w/2; if (r > h/2) radii = h/2;
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    return this;
+  };
+}
+
+// ============================================================
+// Level selector
+// ============================================================
+function populateSelector() {
+  levelSelect.innerHTML = '';
+  for (let i = 0; i < LEVELS.length; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `Level ${i + 1}`;
+    levelSelect.appendChild(opt);
+  }
+  levelSelect.addEventListener('change', () => {
+    loadLevel(parseInt(levelSelect.value));
+  });
+}
+
+// ============================================================
+// Input: Keyboard
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (overlayMsg.classList.contains('show')) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      msgBtn.click();
+    }
+    return;
+  }
+  switch (e.key) {
+    case 'ArrowUp': e.preventDefault(); movePlayer(0, -1); break;
+    case 'ArrowDown': e.preventDefault(); movePlayer(0, 1); break;
+    case 'ArrowLeft': e.preventDefault(); movePlayer(-1, 0); break;
+    case 'ArrowRight': e.preventDefault(); movePlayer(1, 0); break;
+    case 'z': case 'Z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); undoMove(); } break;
+    case 'u': case 'U': e.preventDefault(); undoMove(); break;
+    case 'r': case 'R': e.preventDefault(); resetLevel(); break;
+  }
+});
+
+// ============================================================
+// Input: Touch swipe (on game area and canvas)
+// ============================================================
+let touchStartX = 0, touchStartY = 0;
+let touchId = -1;
+
+function setupTouch(el) {
+  el.addEventListener('touchstart', (e) => {
+    if (touchId >= 0) return; // only track one touch
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchId = t.identifier;
+  }, {passive: true});
+
+  el.addEventListener('touchmove', (e) => {
+    // Prevent scrolling while swiping
+    if (e.target === canvas || e.target === gameArea) {
+      e.preventDefault();
+    }
+  }, {passive: false});
+
+  el.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier !== touchId) continue;
+      touchId = -1;
+
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const minSwipe = Math.max(15, cellSize * 0.2);
+
+      if (overlayMsg.classList.contains('show')) {
+        if (absDx < 15 && absDy < 15) {
+          msgBtn.click();
+        }
+        return;
+      }
+
+      // Tap (not a swipe)
+      if (absDx < minSwipe && absDy < minSwipe) return;
+
+      // Swipe
+      if (absDx > absDy) {
+        movePlayer(dx > 0 ? 1 : -1, 0);
+      } else {
+        movePlayer(0, dy > 0 ? 1 : -1);
+      }
+      return;
+    }
+  }, {passive: true});
+
+  el.addEventListener('touchcancel', () => {
+    touchId = -1;
+  }, {passive: true});
+}
+
+setupTouch(gameArea);
+setupTouch(canvas);
+
+// ============================================================
+// Button handlers
+// ============================================================
+undoBtn.addEventListener('click', undoMove);
+resetBtn.addEventListener('click', resetLevel);
+msgBtn.addEventListener('click', () => {
+  if (msgBtn.dataset.hasNext === '1') {
+    nextLevel();
+  } else {
+    loadLevel(0);
+  }
+});
+
+// ============================================================
+// Resize handler
+// ============================================================
+let resizeTimeout;
+const handleResize = () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (state.grid.length) { fitCanvas(); render(); }
+  }, 100);
+};
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => {
+  setTimeout(handleResize, 300);
+});
+
+// ============================================================
+// Init
+// ============================================================
+populateSelector();
+const savedLevel = (() => {
+  try { const v = localStorage.getItem('sokoban_level'); return v ? parseInt(v) : 0; } catch(e) { return 0; }
+})();
+loadLevel(savedLevel >= 0 && savedLevel < LEVELS.length ? savedLevel : 0);
+</script>
+</body>
+</html>
